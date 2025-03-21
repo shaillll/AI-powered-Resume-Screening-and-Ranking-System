@@ -1,149 +1,195 @@
-# Resume Ranking Application
+# CI/CD Pipeline Documentation
 
-[![Development](https://github.com/vectornguyen76/resume-ranking/actions/workflows/development_pipeline.yml/badge.svg)](https://github.com/vectornguyen76/resume-ranking/actions/workflows/development_pipeline.yml)
-[![Staging](https://github.com/vectornguyen76/resume-ranking/actions/workflows/staging_pipeline.yml/badge.svg)](https://github.com/vectornguyen76/resume-ranking/actions/workflows/staging_pipeline.yml)
-[![Production](https://github.com/vectornguyen76/resume-ranking/actions/workflows/production_pipeline.yml/badge.svg)](https://github.com/vectornguyen76/resume-ranking/actions/workflows/production_pipeline.yml)
+This document describes the Continuous Integration and Continuous Deployment (CI/CD) pipeline setup for the project, implementing a blue-green deployment strategy.
 
-## Overview
+## Pipeline Overview
 
-The Resume Ranking Application is an AI-powered recruitment tool that leverages Large Language Models (LLM) and advanced NLP techniques to automatically evaluate, analyze, and rank resumes based on job requirements. Built with FastAPI, Next.js, and OpenAI's GPT models, it provides intelligent candidate-job matching with detailed scoring and analysis.
+The project uses GitHub Actions with three deployment environments:
 
-## Demo Video
+- **Development** (`develop` branch)
+- **Staging** (`staging` branch)
+- **Production** (`master` branch)
 
-[![Resume Ranking Application Demo](https://img.youtube.com/vi/Gd178Pd48Q4/0.jpg)](https://youtu.be/Gd178Pd48Q4)
+### Pipeline Architecture
 
-Click the image above to watch the demo video on YouTube.
+```mermaid
+graph TD
+    A[Push Code] --> B[CI Pipeline]
+    B --> C[Unit Tests]
+    B --> D[Code Quality]
+    B --> E[Build Images]
+    C & D & E --> F[CD Pipeline]
+    F --> G[Create Infrastructure]
+    G --> H[Deploy Applications]
+    H --> I[Smoke Tests]
+    I --> J[Switch Traffic]
+    J --> K[Cleanup Old Infrastructure]
+```
 
-## Architecture
+## Required Configuration
 
-<p align="center">
-  <img src="./assets/architecture.png" alt="Architecture" />
-  <br>
-  <em>System Architecture</em>
-</p>
+### GitHub Secrets
 
-## Key Technologies
+1. **AWS Configuration**
 
-- **Backend**: FastAPI, Flask, MongoDB
-- **Frontend**: Next.js, TypeScript, TailwindCSS
-- **AI/ML**: OpenAI GPT models, LangChain
-- **Infrastructure**: Docker, Nginx, GitHub Actions, AWS
+   - `AWS_ACCESS_KEY_ID`: AWS access key
+   - `AWS_SECRET_ACCESS_KEY`: AWS secret key
+   - `SSH_PRIVATE_KEY`: SSH key pair for EC2 access
 
-## Features
+2. **Docker Hub**
 
-### Job Description Analysis
+   - `DOCKERHUB_USERNAME`: Docker Hub username
+   - `DOCKERHUB_PASSWORD`: Docker Hub password
 
-- **Intelligent JD Parsing**:
-  - Extracts key requirements, skills, and qualifications using LLM
-  - Structures data into standardized format for matching
-  - Supports multiple languages through GPT's multilingual capabilities
-  - Average processing time: 3 seconds
+3. **Application Secrets**
+   - `OPENAI_API_KEY`: OpenAI API key for analysis service
 
-### Resume Analysis
+### GitHub Variables
 
-- **Advanced CV Processing**:
-  - Handles PDF and Word documents
-  - Extracts and structures candidate information using LLM
-  - Identifies skills, experience, and qualifications
-  - Supports multilingual resumes
-  - Average processing time: 5-10 seconds
+1. **AWS Resource Tags**
 
-### AI-Powered Matching
+```json
+{
+  "TAGS": [
+    { "Key": "ApplicationName", "Value": "Resume Ranking" },
+    { "Key": "Purpose", "Value": "MVP" },
+    { "Key": "Project", "Value": "Resume Ranking" },
+    { "Key": "Creator", "Value": "VectorNguyen" }
+  ]
+}
+```
 
-- **Sophisticated Matching Algorithm**:
-  - Uses LangChain for orchestrating complex LLM operations
-  - Function calling for structured data extraction
-  - Semantic understanding of job requirements and candidate qualifications
-  - Many-to-many relationship support
-  - Average processing time: 3-5 seconds
+## Pipeline Components
 
-### Intelligent Ranking
+### 1. Continuous Integration (`ci.yml`)
 
-- **Smart Evaluation System**:
-  - Generates detailed match analysis using GPT models
-  - Provides scoring based on multiple criteria
-  - Offers AI-generated feedback and comments
-  - Ranks candidates based on overall fit
+- Code quality checks using ruff
+- Unit tests
+- Frontend build verification
 
-## Technical Features
+### 2. Continuous Deployment (`cd.yml`)
 
-- **FastAPI Integration**:
+- Infrastructure provisioning with CloudFormation
+- Blue-green deployment implementation
+- Application deployment using Ansible
+- Health checks and traffic switching
+- Cleanup of old infrastructure
 
-  - Async request handling
-  - Automatic API documentation with Swagger UI
-  - Type validation with Pydantic models
+### 3. Environment-Specific Pipelines
 
-- **LangChain Implementation**:
+#### Development Pipeline
 
-  - Custom prompt engineering
-  - Structured output parsing
-  - Chain of thought reasoning
+**File:** [development_pipeline.yml](development_pipeline.yml)
 
-- **OpenAI Function Calling**:
-  - Structured data extraction
-  - Consistent output formatting
-  - Enhanced control over LLM responses
+- **Trigger:** Push to `develop` branch
+- **Jobs:**
+  - Run code quality checks (ruff)
+  - Run unit tests
+  - Build Docker images
 
-## Documentation
+#### Staging Pipeline
 
-Detailed documentation on system architecture, API endpoints, and configuration options is available in the [User Guide](./assets/presentation.pdf).
+**File:** [staging_pipeline.yml](staging_pipeline.yml)
 
-## Getting Started
+- **Trigger:** Push to `staging` branch
+- **Jobs:**
+  - Run CI checks
+  - Deploy to staging environment
+  - Automatic rollback on failure
 
-1. **Clone the Repository**:
+#### Production Pipeline
 
-   ```bash
-   git clone https://github.com/vectornguyen76/resume-ranking.git
-   ```
+**File:** [production_pipeline.yml](production_pipeline.yml)
 
-2. **Configure Environment**:
+- **Trigger:** Pull request to `master` branch
+- **Jobs:**
+  - Run CI checks
+  - Deploy to production environment
+  - Automatic rollback on failure
 
-   - Set up OpenAI API key:
-     ```bash
-     # analysis_service/.env
-     OPENAI_API_KEY="your-key"
-     ```
-   - Configure frontend API URL:
-     ```bash
-     # frontend/.env.production
-     NEXT_PUBLIC_API_URL=http://<your-ip-address>/backend
-     ```
+### 4. Rollback Process
 
-3. **Build and Run**:
+The rollback workflow ([rollback.yml](rollback.yml)) is triggered automatically if deployment fails:
 
-   ```bash
-   cd resume-ranking
-   docker compose build
-   docker compose up
-   ```
+- Identifies failed deployment stack
+- Removes newly created infrastructure
+- Traffic remains routed to previous stable environment
 
-4. **Access Application**:
-   - Frontend: `http://your-ip-address`
+## Deployment Process
 
-## Development
+### Infrastructure Creation
 
-- **Code Quality**:
+- Creates VPC, subnets, security groups
+- Launches EC2 instance
+- Sets up Application Load Balancer
+- Configures SSL certificate
 
-  - Ruff for Python linting
-  - ESLint for TypeScript/JavaScript
-  - Pre-commit hooks for code formatting
+### Application Deployment
 
-- **Testing**:
+- Builds and pushes Docker images
+- Configures EC2 instance using Ansible
+- Deploys applications using Docker Compose
 
-  - Unit tests with pytest
-  - Integration tests for API endpoints
-  - Frontend testing with React Testing Library
+### Traffic Management
 
-- **CI/CD**:
-  - Automated testing with GitHub Actions
-  - Docker image builds
-  - Deployment automation
+- Performs health checks
+- Updates Route53 DNS records
+- Switches traffic to new environment
 
-## Contributors
+### Cleanup
 
-- [Pham Phu Ngoc Trai](https://github.com/jayllfpt)
-- [Vector Nguyen](https://github.com/vectornguyen76)
+- Removes old infrastructure after successful deployment
 
-## License
+## Infrastructure as Code
 
-This project is licensed under the [MIT License](LICENSE).
+The infrastructure is defined using AWS CloudFormation:
+
+- **Template:** [server.yml](cloudformations/server.yml)
+- **Parameters:** Configurable via pipeline inputs
+- **Resources:**
+  - VPC and networking components
+  - EC2 instances
+  - Load balancer
+  - SSL certificate
+  - DNS configuration
+
+## Usage
+
+### Development Workflow
+
+1. Create feature branch from `develop`
+2. Push changes to trigger CI pipeline
+3. Merge to `develop` for development deployment
+
+### Staging Deployment
+
+1. Merge `develop` to `staging`
+2. Automated deployment to staging environment
+3. Verify changes in staging
+
+### Production Deployment
+
+1. Create pull request to `master`
+2. CI/CD pipeline runs automatically
+3. Review and merge for production deployment
+
+## Monitoring and Maintenance
+
+### Health Checks
+
+- Application endpoint monitoring
+- Infrastructure health verification
+- Automatic rollback on failure
+
+### Cleanup
+
+- Automatic removal of old infrastructure
+- Resource tag-based management
+- Cost optimization
+
+## References
+
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [AWS CloudFormation Documentation](https://docs.aws.amazon.com/cloudformation/)
+- [Blue-Green Deployment Pattern](https://martinfowler.com/bliki/BlueGreenDeployment.html)
+- [Ansible Documentation](https://docs.ansible.com/)
